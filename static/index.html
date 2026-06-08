@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AudioLens AI</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <p class="eyebrow">AI VIDEO & AUDIO ASSISTANT</p>
+      <h1>Turn anything spoken into something useful.</h1>
+      <p class="intro">Import a YouTube video, upload audio, or record directly. Review the transcript before creating a grounded AI chat.</p>
+    </header>
+
+    <section class="card" id="inputCard">
+      <div class="step-heading"><span>1</span><div><h2>Add audio</h2><p>Choose one source and the spoken language.</p></div></div>
+
+      <div class="language-row">
+        <label><input type="radio" name="language" value="english" checked> English / Hinglish</label>
+        <label><input type="radio" name="language" value="hindi"> Hindi</label>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="upload">Upload</button>
+        <button class="tab" data-tab="record">Microphone</button>
+        <button class="tab" data-tab="youtube">YouTube</button>
+      </div>
+
+      <div class="panel active" id="uploadPanel">
+        <label class="drop-zone" for="audioFile">
+          <strong>Select an audio file</strong>
+          <span>MP3, MPEG audio, WAV, M4A, AAC, FLAC, OGG, WebM, or WMA</span>
+          <input id="audioFile" type="file" accept="audio/*,.mp3,.mpeg,.mpga,.m4a,.aac,.wav,.ogg,.opus,.webm,.flac,.wma">
+        </label>
+        <button class="primary full" id="uploadButton">Process upload</button>
+      </div>
+
+      <div class="panel" id="recordPanel">
+        <div class="recorder">
+          <div class="record-state"><i id="recordDot"></i><span id="recordStatus">Ready to record</span></div>
+          <span id="recordTimer">00:00</span>
+        </div>
+        <div class="actions">
+          <button class="secondary" id="recordButton">Start recording</button>
+          <button class="primary" id="recordProcessButton" disabled>Process recording</button>
+        </div>
+      </div>
+
+      <div class="panel" id="youtubePanel">
+        <label for="youtubeUrl">YouTube URL</label>
+        <div class="inline">
+          <input id="youtubeUrl" type="url" placeholder="https://youtube.com/watch?v=...">
+          <button class="primary" id="youtubeButton">Process video</button>
+        </div>
+      </div>
+
+      <div class="progress hidden" id="progressBox">
+        <div class="spinner"></div>
+        <div><strong id="progressTitle">Processing audio</strong><p id="progressText">This can take a little while on free services.</p></div>
+      </div>
+      <div class="log-panel hidden" id="logPanel">
+        <div class="log-header">
+          <strong>Processing logs</strong>
+          <span id="logCount">0 events</span>
+        </div>
+        <div id="logList" class="log-list"></div>
+      </div>
+      <p class="error hidden" id="errorBox"></p>
+    </section>
+
+    <section class="card hidden" id="transcriptCard">
+      <div class="step-heading"><span>2</span><div><h2>Review transcript</h2><p id="providerLabel"></p></div></div>
+      <textarea id="transcriptText" spellcheck="true"></textarea>
+      <div class="save-row">
+        <span id="saveStatus">Review and correct anything that needs attention.</span>
+        <button class="secondary" id="saveButton">Save changes</button>
+        <button class="primary" id="createChatButton">Create chat</button>
+      </div>
+    </section>
+
+    <section class="card hidden" id="resultCard">
+      <div class="step-heading"><span>3</span><div><h2 id="resultTitle">Recording ready</h2><p>Your summary and transcript-grounded chat.</p></div></div>
+      <div class="summary" id="summaryText"></div>
+      <div class="chat" id="chatMessages"></div>
+      <form class="chat-form" id="chatForm">
+        <input id="questionInput" placeholder="Ask something about this recording..." autocomplete="off">
+        <button class="primary">Ask</button>
+      </form>
+    </section>
+
+    <button class="text-button" id="newSessionButton">Clear session and start over</button>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

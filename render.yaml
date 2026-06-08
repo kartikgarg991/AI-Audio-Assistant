@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ai-video-assistant
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker -w 1 -b 0.0.0.0:$PORT main:app
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SESSION_TTL_SECONDS
+        value: 7200
+      - key: CLEANUP_COOLDOWN_SECONDS
+        value: 3600
+
