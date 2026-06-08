@@ -20,6 +20,7 @@ class Settings:
     )
     redis_url: str = os.getenv("REDIS_URL", "")
     yt_cookies_path: str | None = os.getenv("YTDLP_COOKIES_FILE") or None
+    yt_cookies_content: str | None = os.getenv("YT_COOKIES_CONTENT") or None
     session_ttl_seconds: int = int(os.getenv("SESSION_TTL_SECONDS", "7200"))
     cleanup_cooldown_seconds: int = int(
         os.getenv("CLEANUP_COOLDOWN_SECONDS", "3600")

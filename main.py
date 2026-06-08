@@ -38,6 +38,14 @@ app = FastAPI(title="AI Video Assistant")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+@app.on_event("startup")
+def _materialize_yt_cookies() -> None:
+    if settings.yt_cookies_content:
+        cookie_path = Path("/tmp/yt_cookies.txt")
+        cookie_path.write_text(settings.yt_cookies_content)
+        object.__setattr__(settings, "yt_cookies_path", str(cookie_path))
+
+
 @app.middleware("http")
 async def cleanup_middleware(request, call_next):
     schedule_cleanup()
