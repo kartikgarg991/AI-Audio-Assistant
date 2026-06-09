@@ -49,12 +49,16 @@ def download_youtube_audio(
 ) -> Path:
     output_template = str(workdir / "youtube.%(ext)s")
     options = {
-        # "format": "bestaudio[acodec!=none]/best[acodec!=none]/best",
-        "format": "bestaudio/best",
+        "format": "bestaudio[ext=m4a]/bestaudio/best[ext=mp4]/best",
         "outtmpl": output_template,
-        "noplaylist": True,
         "quiet": True,
+        "socket_timeout": 600,
+        "retries": 3,
+        "fragment_retries": 3,
+        "noplaylist": True,
         "ffmpeg_location": str(Path(ffmpeg_path()).parent),
+        "impersonate": "chrome",
+        "js_runtimes": {"node": {}},
     }
     if cookies_file and Path(cookies_file).exists():
         options["cookiefile"] = cookies_file
