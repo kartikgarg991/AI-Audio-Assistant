@@ -55,7 +55,6 @@ def download_youtube_audio(
         "noplaylist": True,
         "quiet": True,
         "ffmpeg_location": str(Path(ffmpeg_path()).parent),
-        "impersonate": "chrome",
     }
     if cookies_file and Path(cookies_file).exists():
         options["cookiefile"] = cookies_file
