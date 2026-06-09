@@ -4,12 +4,30 @@ const state = {
   recorder: null,
   recordingChunks: [],
   recordingBlob: null,
+  recordingUrl: null,
   timer: null,
   startedAt: null,
   logPoller: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
+
+function cleanupRecordingUrl() {
+  if (state.recordingUrl) {
+    URL.revokeObjectURL(state.recordingUrl);
+    state.recordingUrl = null;
+  }
+}
+
+function resetRecordingPlayback() {
+  cleanupRecordingUrl();
+  const playback = $("#recordingPlayback");
+  playback.src = "";
+  playback.pause();
+  playback.currentTime = 0;
+  $("#recordPlaybackRow").classList.add("hidden");
+  $("#listenRecordingButton").textContent = "Listen to recording";
+}
 const progressBox = $("#progressBox");
 const errorBox = $("#errorBox");
 
@@ -199,14 +217,22 @@ $("#recordButton").addEventListener("click", async () => {
     return;
   }
   try {
+    resetRecordingPlayback();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     state.recordingChunks = [];
     state.recorder = new MediaRecorder(stream);
+    state.recordingBlob = null;
+    $("#recordProcessButton").disabled = true;
     state.recorder.ondataavailable = (event) => event.data.size && state.recordingChunks.push(event.data);
     state.recorder.onstop = () => {
       state.recordingBlob = new Blob(state.recordingChunks, { type: state.recorder.mimeType || "audio/webm" });
       stream.getTracks().forEach((track) => track.stop());
       clearInterval(state.timer);
+      cleanupRecordingUrl();
+      state.recordingUrl = URL.createObjectURL(state.recordingBlob);
+      const playback = $("#recordingPlayback");
+      playback.src = state.recordingUrl;
+      $("#recordPlaybackRow").classList.remove("hidden");
       $("#recordDot").classList.remove("live");
       $("#recordStatus").textContent = "Recording ready";
       $("#recordButton").textContent = "Record again";
@@ -224,6 +250,21 @@ $("#recordButton").addEventListener("click", async () => {
   } catch {
     showError("Microphone permission was denied or is unavailable.");
   }
+});
+
+$("#listenRecordingButton").addEventListener("click", () => {
+  const playback = $("#recordingPlayback");
+  if (playback.paused) {
+    playback.play();
+    $("#listenRecordingButton").textContent = "Pause recording";
+  } else {
+    playback.pause();
+    $("#listenRecordingButton").textContent = "Resume recording";
+  }
+});
+
+$("#recordingPlayback").addEventListener("ended", () => {
+  $("#listenRecordingButton").textContent = "Listen to recording";
 });
 
 $("#recordProcessButton").addEventListener("click", () => {
@@ -324,4 +365,4 @@ api("/api/session/touch", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ session_id: state.sessionId }),
-}).catch(() => {});
+}).catch(() => { });
