@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import redis
@@ -40,7 +40,8 @@ def _key(kind: str, session_id: str) -> str:
 
 
 def _format_timestamp(timestamp: int) -> str:
-    return datetime.fromtimestamp(timestamp).strftime("%I:%M %p %d %B %Y")
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.fromtimestamp(timestamp, ist).strftime("%I:%M %p %d %B %Y")
 
 
 def _memory_set(key: str, value: str, ttl: int) -> None:
