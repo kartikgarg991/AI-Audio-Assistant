@@ -38,26 +38,6 @@ app = FastAPI(title="AI Video Assistant")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-# @app.on_event("startup")
-# def _materialize_yt_cookies() -> None:
-#     if settings.yt_cookies_content:
-#         cookie_path = Path("/tmp/yt_cookies.txt")
-#         cookie_path.write_text(settings.yt_cookies_content)
-#         object.__setattr__(settings, "yt_cookies_path", str(cookie_path))
-
-@app.on_event("startup")
-def _materialize_yt_cookies() -> None:
-    if settings.yt_cookies_path and Path(settings.yt_cookies_path).exists():
-        return
-    if settings.yt_cookies_content:
-        cookie_path = Path(tempfile.gettempdir()) / "yt_cookies.txt"
-        content = settings.yt_cookies_content.strip()
-        if "\\n" in content and "\n" not in content:
-            content = content.replace("\\n", "\n")
-        if not content.startswith("# Netscape HTTP Cookie File"):
-            content = "# Netscape HTTP Cookie File\n" + content
-        cookie_path.write_text(content, encoding="utf-8")
-        object.__setattr__(settings, "yt_cookies_path", str(cookie_path))
 
 
 @app.middleware("http")
@@ -217,7 +197,7 @@ def transcribe_youtube(payload: YouTubeRequest):
         source = download_youtube_audio(
             payload.url,
             workdir,
-            cookies_file=settings.yt_cookies_path,
+            # cookies resolved automatically by _resolve_cookies() in audio.py
         )
         append_log(payload.session_id, f"YouTube audio downloaded: {source.name}")
         return _process_audio(

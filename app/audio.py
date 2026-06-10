@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -10,6 +11,9 @@ import imageio_ffmpeg
 import yt_dlp
 
 from app.config import settings
+
+# Root of the project (one level above this file: app/audio.py → project root)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class AudioChunk(NamedTuple):
@@ -42,6 +46,60 @@ def ffmpeg_path() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
+def _has_cookie_rows(path: Path) -> bool:
+    """Return True only if the cookie file has at least one non-comment data row."""
+    try:
+        return any(
+            line.strip() and not line.startswith("#")
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        )
+    except OSError:
+        return False
+
+
+def _resolve_cookies(workdir: Path) -> str | None:
+    """
+    Priority order (mirrors Sakshi's working approach):
+    1. YT_COOKIES_CONTENT env var  → write to workdir/_yt_cookies.txt (Render)
+    2. YTDLP_COOKIES_FILE env var  → resolve as absolute path (local dev)
+    3. <project_root>/cookies.txt  → absolute fallback for local dev
+    Always normalizes \\n → \n and validates the file has real cookie rows.
+    """
+    # --- Priority 1: env var content (Render deployment) ---
+    content = os.getenv("YT_COOKIES_CONTENT", "").strip()
+    if content:
+        # Always normalize escaped newlines unconditionally
+        content = content.replace("\\n", "\n")
+        if not content.startswith("# Netscape HTTP Cookie File"):
+            content = "# Netscape HTTP Cookie File\n" + content
+        cookie_path = workdir / "_yt_cookies.txt"
+        cookie_path.write_text(content, encoding="utf-8")
+        if _has_cookie_rows(cookie_path):
+            print(f"[audio] Using YT_COOKIES_CONTENT env var ({len(content)} bytes)")
+            return str(cookie_path)
+        print("[audio] YT_COOKIES_CONTENT is set but has no valid cookie rows — skipping")
+
+    # --- Priority 2: explicit file path env var ---
+    env_path = os.getenv("YTDLP_COOKIES_FILE", "").strip()
+    if env_path:
+        # Resolve relative paths against project root, not cwd
+        candidate = Path(env_path)
+        if not candidate.is_absolute():
+            candidate = _PROJECT_ROOT / env_path
+        if candidate.exists() and _has_cookie_rows(candidate):
+            print(f"[audio] Using cookies file: {candidate}")
+            return str(candidate)
+
+    # --- Priority 3: auto-detect cookies.txt at project root ---
+    fallback = _PROJECT_ROOT / "cookies.txt"
+    if fallback.exists() and _has_cookie_rows(fallback):
+        print(f"[audio] Using project-root cookies.txt: {fallback}")
+        return str(fallback)
+
+    print("[audio] No valid YouTube cookies found — proceeding without authentication")
+    return None
+
+
 def download_youtube_audio(
     url: str,
     workdir: Path,
@@ -49,19 +107,18 @@ def download_youtube_audio(
 ) -> Path:
     output_template = str(workdir / "youtube.%(ext)s")
     options = {
-        "format": "bestaudio[ext=m4a]/bestaudio/best[ext=mp4]/best",
+        "format": "bestaudio/best",
         "outtmpl": output_template,
         "quiet": True,
         "socket_timeout": 600,
         "retries": 3,
         "fragment_retries": 3,
-        "noplaylist": True,
         "ffmpeg_location": str(Path(ffmpeg_path()).parent),
-        "impersonate": "chrome",
-        "js_runtimes": {"node": {}},
     }
-    if cookies_file and Path(cookies_file).exists():
-        options["cookiefile"] = cookies_file
+    # Resolve cookies fresh on every call (not just at startup)
+    resolved = cookies_file or _resolve_cookies(workdir)
+    if resolved:
+        options["cookiefile"] = resolved
     with yt_dlp.YoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=True)
         downloaded = Path(downloader.prepare_filename(info))
