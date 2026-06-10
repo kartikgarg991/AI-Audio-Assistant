@@ -164,7 +164,7 @@ def get_logs(session_id: str) -> list[dict[str, Any]]:
     return logs if isinstance(logs, list) else []
 
 
-def get_expired_sessions(limit: int = 100) -> list[str]:
+def get_expired_sessions(limit: int = 1000) -> list[str]:
     now = int(time.time())
     client = _get_client()
     if client:

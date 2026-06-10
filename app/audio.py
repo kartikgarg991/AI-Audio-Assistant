@@ -208,11 +208,12 @@ def split_audio(
     return chunks
 
 
-def copy_upload_to_temp(contents: bytes, suffix: str) -> tuple[Path, Path]:
+def copy_upload_to_temp(file_obj, suffix: str) -> tuple[Path, Path]:
     workdir = Path(tempfile.mkdtemp(prefix="ai-video-assistant-"))
     safe_suffix = suffix.lower() if suffix and suffix.lower() in SAFE_UPLOAD_SUFFIXES else ".bin"
     source = workdir / f"source{safe_suffix}"
-    source.write_bytes(contents)
+    with source.open("wb") as buffer:
+        shutil.copyfileobj(file_obj, buffer)
     return workdir, source
 
 

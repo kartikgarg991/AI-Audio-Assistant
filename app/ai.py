@@ -140,21 +140,29 @@ def index_transcript(
     transcript: str,
 ) -> int:
     chunks = split_text(transcript)
-    vectors = embed_texts(chunks)
-    payload = [
-        {
-            "id": f"{audio_id}:{index}",
-            "values": vector,
-            "metadata": {
-                "audio_id": audio_id,
-                "chunk_id": index,
-                "text": chunks[index],
-            },
-        }
-        for index, vector in enumerate(vectors)
-    ]
-    pinecone_index().upsert(vectors=payload, namespace=session_id)
-    return len(payload)
+    total_vectors = 0
+    batch_size = 50
+    
+    for i in range(0, len(chunks), batch_size):
+        batch_chunks = chunks[i : i + batch_size]
+        batch_vectors = embed_texts(batch_chunks)
+        
+        payload = [
+            {
+                "id": f"{audio_id}:{i + index}",
+                "values": vector,
+                "metadata": {
+                    "audio_id": audio_id,
+                    "chunk_id": i + index,
+                    "text": batch_chunks[index],
+                },
+            }
+            for index, vector in enumerate(batch_vectors)
+        ]
+        pinecone_index().upsert(vectors=payload, namespace=session_id)
+        total_vectors += len(payload)
+        
+    return total_vectors
 
 
 def answer_question(

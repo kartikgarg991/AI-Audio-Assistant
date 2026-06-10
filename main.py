@@ -112,13 +112,16 @@ def _process_audio(
 
 
 def cleanup_expired_sessions() -> None:
-    for session_id in get_expired_sessions():
+    for session_id in get_expired_sessions(limit=1000):
         try:
             delete_namespace(session_id)
-        except Exception as exc:
-            print(f"Cleanup failed for {session_id}: {exc}")
-        finally:
             clear_session(session_id)
+        except Exception as exc:
+            error_msg = str(exc).lower()
+            if "not exist" in error_msg or "not found" in error_msg:
+                clear_session(session_id)
+            else:
+                print(f"Cleanup failed for {session_id}, will retry later: {exc}")
 
 
 def schedule_cleanup() -> None:
@@ -159,15 +162,19 @@ def transcribe_upload(
         raise HTTPException(400, "Invalid source type.")
     clear_logs(session_id)
     append_log(session_id, f"Received {source_type} file: {file.filename or 'recording'}")
-    contents = file.file.read()
-    if not contents:
-        append_log(session_id, "Uploaded audio was empty", "error")
-        raise HTTPException(400, "The uploaded audio is empty.")
-    append_log(session_id, f"Upload size: {len(contents)} bytes")
-
     audio_id = str(uuid.uuid4())
     suffix = Path(file.filename or "audio.webm").suffix
-    workdir, source = copy_upload_to_temp(contents, suffix)
+    
+    # Stream the file directly to disk to avoid Out-Of-Memory errors
+    workdir, source = copy_upload_to_temp(file.file, suffix)
+    
+    file_size = source.stat().st_size
+    if file_size == 0:
+        cleanup_workdir(workdir)
+        append_log(session_id, "Uploaded audio was empty", "error")
+        raise HTTPException(400, "The uploaded audio is empty.")
+        
+    append_log(session_id, f"Upload saved to disk: {file_size} bytes")
     touch_session(session_id)
     try:
         return _process_audio(
