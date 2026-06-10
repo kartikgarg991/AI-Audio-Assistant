@@ -107,13 +107,14 @@ def download_youtube_audio(
 ) -> Path:
     output_template = str(workdir / "youtube.%(ext)s")
     options = {
-        "format": "bestaudio/best",
+        "format": "bestaudio[ext=m4a]/bestaudio/best[ext=mp4]/best",
         "outtmpl": output_template,
         "quiet": True,
         "socket_timeout": 600,
         "retries": 3,
         "fragment_retries": 3,
         "ffmpeg_location": str(Path(ffmpeg_path()).parent),
+        "js_runtimes": {"node": {}},
     }
     # Resolve cookies fresh on every call (not just at startup)
     resolved = cookies_file or _resolve_cookies(workdir)
