@@ -12,6 +12,30 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 
+// ── Auth helpers ──────────────────────────────────────────────
+function getToken() {
+  return localStorage.getItem('access_token');
+}
+
+function signOut() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('user');
+  window.location.replace('/static/login.html');
+}
+
+// Show user name + avatar initials in the top bar
+(function populateUserBar() {
+  const raw = localStorage.getItem('user');
+  if (!raw) return signOut();
+  const user = JSON.parse(raw);
+  const fullName = user.full_name || user.username || 'User';
+  document.getElementById('userFullName').textContent = fullName;
+  document.getElementById('userAvatar').textContent = fullName.charAt(0).toUpperCase();
+})();
+
+document.getElementById('signOutBtn').addEventListener('click', signOut);
+// ─────────────────────────────────────────────────────────────
+
 function cleanupRecordingUrl() {
   if (state.recordingUrl) {
     URL.revokeObjectURL(state.recordingUrl);
@@ -146,9 +170,17 @@ function clearError() {
 }
 
 async function api(url, options = {}) {
-  const response = await fetch(url, options);
+  const token = getToken();
+  const headers = { ...(options.headers || {}) };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const response = await fetch(url, { ...options, headers });
+  // If 401, the token has expired or is invalid — send back to login
+  if (response.status === 401) {
+    signOut();
+    return;
+  }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || data.error || "Request failed.");
+  if (!response.ok) throw new Error(data.detail || data.error || 'Request failed.');
   return data;
 }
 

@@ -9,3 +9,8 @@ pinecone==7.0.2
 yt-dlp[default,curl-cffi]
 imageio-ffmpeg==0.6.0
 groq>=0.28.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+slowapi==0.1.9
+motor==3.7.1

@@ -1,14 +1,23 @@
-from __future__ import annotations
-
 import tempfile
 import threading
 import uuid
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from datetime import datetime, timedelta
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, Depends, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from fastapi import Request # Add Request to your existing fastapi imports
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from app.database import users_collection
+
+
 
 from app.ai import (
     answer_question,
@@ -37,7 +46,119 @@ STATIC_DIR = ROOT / "static"
 app = FastAPI(title="AI Video Assistant")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+# Initialize Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Create a Password Hashing Context using bcrypt
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Define where FastAPI should look for the token (the login endpoint)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+
+# Helper to check if a plain password matches the hashed password in the DB
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+# Helper to hash a plain password before saving it to the DB
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+# Function to generate a signed JWT
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    
+    # 1. Calculate the expiration time (current time + 30 minutes)
+    expire = datetime.utcnow() + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+    
+    # 2. Add the expiration timestamp to the payload
+    to_encode.update({"exp": expire})
+    
+    # 3. Sign and encode the JWT using settings
+    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    
+    return encoded_jwt
+
+# User data is now stored permanently in MongoDB (see app/database.py)
+
+# 2. Pydantic model for incoming registration data
+class UserRegister(BaseModel):
+    username: str
+    password: str
+    full_name: str
+
+# 3. The Registration Endpoint
+@app.post("/api/register")
+async def register_user(user_data: UserRegister):
+    # Check if the user already exists in MongoDB
+    existing = await users_collection.find_one({"username": user_data.username})
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    # Hash their plain text password securely
+    hashed_password = get_password_hash(user_data.password)
+    
+    # Save the new user permanently to MongoDB
+    new_user = {
+        "username": user_data.username,
+        "full_name": user_data.full_name,
+        "hashed_password": hashed_password,
+    }
+    await users_collection.insert_one(new_user)
+    
+    return {"message": "User created successfully! You can now log in."}
+
+@app.post("/api/login")
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Incorrect username or password",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    # Fetch the user from MongoDB
+    user = await users_collection.find_one({"username": form_data.username})
+    
+    if not user:
+        raise credentials_exception
+    
+    # Verify the password
+    if not verify_password(form_data.password, user["hashed_password"]):
+        raise credentials_exception
+    
+    # Create the JWT token
+    access_token = create_access_token(data={"sub": user["username"]})
+    
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer", 
+        "user": {"username": user["username"], "full_name": user["full_name"]}
+    }
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        # Decode the token using our secret key from settings
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        # Catch any errors (like an expired token or tampered signature)
+        raise credentials_exception
+        
+    # Find the user in MongoDB
+    user = await users_collection.find_one({"username": username})
+    if user is None:
+        raise credentials_exception
+        
+    # If everything is good, let them through and give the endpoint their info!
+    return user
 
 
 @app.middleware("http")
@@ -257,7 +378,11 @@ def create_chat(payload: CreateChatRequest):
 
 
 @app.post("/api/chat/ask")
-def ask(payload: AskRequest):
+@limiter.limit("5/minute")  # 👈 This allows 5 requests per minute!
+def ask(request: Request, payload: AskRequest, current_user: dict = Depends(get_current_user)):
+    # Let's add a quick print statement to prove we know who is asking!
+    print(f"🔒 Secure Route Accessed by: {current_user['full_name']}")
+    
     result = get_json("result", payload.session_id)
     if not result or result.get("audio_id") != payload.audio_id:
         raise HTTPException(409, "Create the chat index before asking questions.")

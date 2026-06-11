@@ -6,10 +6,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AudioLens AI</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .user-bar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,.8);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--ink);
+      backdrop-filter: blur(8px);
+    }
+    .user-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-size: .75rem;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .signout-btn {
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--muted);
+      font: inherit;
+      font-size: .88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: color .2s, border-color .2s;
+    }
+    .signout-btn:hover {
+      color: var(--accent-dark);
+      border-color: var(--accent);
+    }
+  </style>
+  <script>
+    // Auth Guard — redirect to login if no token found
+    (function() {
+      if (!localStorage.getItem('access_token')) {
+        window.location.replace('/static/login.html');
+      }
+    })();
+  </script>
 </head>
 
 <body>
   <main class="shell">
+    <div class="user-bar">
+      <div class="user-badge">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <span id="userFullName">Loading…</span>
+      </div>
+      <button class="signout-btn" id="signOutBtn">Sign out</button>
+    </div>
     <header>
       <p class="eyebrow">AI VIDEO & AUDIO ASSISTANT</p>
       <h1>Turn anything spoken into something useful.</h1>
